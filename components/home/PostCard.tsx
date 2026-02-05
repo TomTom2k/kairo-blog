@@ -29,7 +29,7 @@ const PostCard = ({
         className="group relative overflow-hidden rounded-2xl bg-card border border-border shadow-sm hover:shadow-xl transition-all duration-500 animate-fade-in"
         style={{ animationDelay: `${index * 0.1}s` }}
       >
-        <a href={`/post/${slug}`} className="block">
+        <a href={`/blog/${slug}`} className="block">
           <div className="grid md:grid-cols-2 gap-0">
             <div className="relative h-64 md:h-full overflow-hidden">
               <img
@@ -82,7 +82,7 @@ const PostCard = ({
       className="group overflow-hidden rounded-xl bg-card border border-border shadow-sm hover:shadow-lg transition-all duration-300 animate-fade-in"
       style={{ animationDelay: `${index * 0.1}s` }}
     >
-      <a href={`/post/${slug}`} className="block">
+      <a href={`/blog/${slug}`} className="block">
         <div className="relative h-48 overflow-hidden">
           <img
             src={imageUrl}
