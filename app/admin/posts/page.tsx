@@ -87,10 +87,10 @@ export default function PostsPage() {
     {
       key: "title",
       title: "Tiêu đề",
-      render: (value, row) => (
+      render: (_, row) => (
         <div>
           <p className="font-medium text-foreground line-clamp-1">
-            {String(value)}
+            {row.languages?.vi?.title || "Chưa có tiêu đề"}
           </p>
           <p className="text-sm text-muted-foreground">/{row.slug}</p>
         </div>
@@ -281,7 +281,7 @@ export default function PostsPage() {
         }}
         onConfirm={confirmDelete}
         title="Xóa bài viết"
-        description={`Bạn chắc chắn muốn xóa bài viết "${postToDelete?.title}"? Hành động này không thể hoàn tác.`}
+        description={`Bạn chắc chắn muốn xóa bài viết "${postToDelete?.languages?.vi?.title || "này"}"? Hành động này không thể hoàn tác.`}
         loading={isDeleting}
       />
     </>

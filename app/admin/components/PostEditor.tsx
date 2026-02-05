@@ -18,11 +18,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { postService } from "@/services/post-service";
 import { tagService, Tag } from "@/services/tag-service";
+import RichTextEditor from "./RichTextEditor";
 
 const postSchema = z.object({
   id: z.string().optional(),
@@ -62,6 +63,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
     setValue,
     watch,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<PostFormValues>({
     resolver: zodResolver(postSchema),
@@ -115,20 +117,20 @@ export default function PostEditor({ postId }: PostEditorProps) {
       if (data) {
         reset({
           id: data.id,
-          title: data.title || "",
-          title_en: data.title_en || "",
+          title: data.languages?.vi?.title || "",
+          title_en: data.languages?.en?.title || "",
           slug: data.slug || "",
-          content: data.content || "",
-          content_en: data.content_en || "",
-          excerpt: data.excerpt || "",
-          excerpt_en: data.excerpt_en || "",
+          content: data.languages?.vi?.content || "",
+          content_en: data.languages?.en?.content || "",
+          excerpt: data.languages?.vi?.excerpt || "",
+          excerpt_en: data.languages?.en?.excerpt || "",
           published: data.published || false,
           thumbnail: data.thumbnail || "",
-          meta_title: data.meta_title || "",
-          meta_description: data.meta_description || "",
-          canonical_url: data.canonical_url || "",
-          og_image: data.og_image || "",
-          focus_keywords: data.focus_keywords || "",
+          meta_title: data.languages?.vi?.meta_title || "",
+          meta_description: data.languages?.vi?.meta_description || "",
+          canonical_url: data.languages?.vi?.canonical_url || "",
+          og_image: data.languages?.vi?.og_image || "",
+          focus_keywords: data.languages?.vi?.focus_keywords || "",
         });
         setSelectedTags(
           data.post_tags?.map((t: { tag_id: string }) => t.tag_id) || [],
@@ -159,11 +161,37 @@ export default function PostEditor({ postId }: PostEditorProps) {
   }, [titleValue, setValue, postId]);
 
   const onSubmit = async (values: PostFormValues) => {
+    const formattedData = {
+      slug: values.slug,
+      published: values.published,
+      thumbnail: values.thumbnail,
+      languages: {
+        vi: {
+          title: values.title,
+          content: values.content || "",
+          excerpt: values.excerpt || "",
+          meta_title: values.meta_title,
+          meta_description: values.meta_description,
+          focus_keywords: values.focus_keywords,
+          canonical_url: values.canonical_url,
+          og_image: values.og_image,
+        },
+        en: {
+          title: values.title_en || "",
+          content: values.content_en || "",
+          excerpt: values.excerpt_en || "",
+        },
+      },
+    };
+
     try {
       if (values.id) {
-        await postService.update(values as any, selectedTags);
+        await postService.update(
+          { ...formattedData, id: values.id } as any,
+          selectedTags,
+        );
       } else {
-        await postService.create(values as any, selectedTags);
+        await postService.create(formattedData as any, selectedTags);
       }
       router.push("/admin/posts");
     } catch (error) {
@@ -329,15 +357,20 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Nội dung
                 </label>
-                <textarea
-                  {...register(activeTab === "vi" ? "content" : "content_en")}
-                  rows={15}
-                  placeholder={
-                    activeTab === "vi"
-                      ? "Viết nội dung bài viết của bạn..."
-                      : "Write your post content..."
-                  }
-                  className="w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none font-mono"
+                <Controller
+                  name={activeTab === "vi" ? "content" : "content_en"}
+                  control={control}
+                  render={({ field }) => (
+                    <RichTextEditor
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder={
+                        activeTab === "vi"
+                          ? "Viết nội dung bài viết của bạn..."
+                          : "Write your post content..."
+                      }
+                    />
+                  )}
                 />
               </div>
 

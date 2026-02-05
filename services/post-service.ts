@@ -1,25 +1,29 @@
 import { createClient } from "@/lib/supabase/client";
 
+export interface LanguageContent {
+  title: string;
+  content: string;
+  excerpt: string;
+  meta_title?: string;
+  meta_description?: string;
+  focus_keywords?: string;
+  canonical_url?: string;
+  og_image?: string;
+}
+
 export interface Post {
   id: string;
-  title: string;
-  title_en?: string;
   slug: string;
-  content?: string;
-  content_en?: string;
-  excerpt?: string;
-  excerpt_en?: string;
+  languages: {
+    vi: LanguageContent;
+    en?: LanguageContent;
+  };
   published: boolean;
   thumbnail?: string;
   view_count?: number;
   created_at: string;
   published_at?: string;
   updated_at?: string;
-  meta_title?: string;
-  meta_description?: string;
-  canonical_url?: string;
-  og_image?: string;
-  focus_keywords?: string;
   tags?: { id: string; name: string }[];
 }
 
@@ -50,7 +54,8 @@ export const postService = {
       .range((page - 1) * pageSize, page * pageSize - 1);
 
     if (search) {
-      query = query.ilike("title", `%${search}%`);
+      // Search in the 'vi' title within the JSONB column
+      query = query.ilike("languages->vi->>'title'", `%${search}%`);
     }
 
     if (status === "published") {
