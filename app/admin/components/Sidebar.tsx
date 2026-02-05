@@ -42,9 +42,20 @@ const navItems = [
   },
 ];
 
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
+  const supabase = createClient();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <aside
@@ -116,6 +127,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="p-3 border-t border-sidebar-border">
         <button
+          onClick={handleLogout}
           className={`
             flex items-center gap-3 px-3 py-2.5 rounded-lg w-full
             text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive

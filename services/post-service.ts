@@ -31,11 +31,25 @@ export type CreatePostInput = Omit<
   Post,
   "id" | "created_at" | "views" | "tags" | "published_at" | "updated_at"
 >;
+
 export type UpdatePostInput = Partial<CreatePostInput> & { id: string };
 
 const supabase = createClient();
 
 export const postService = {
+  /**
+   * Get lightweight list of posts (id, title) for selection/filtering
+   */
+  async getLiteList() {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, slug, languages")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data as Pick<Post, "id" | "slug" | "languages">[];
+  },
+
   async getAll({
     page = 1,
     pageSize = 10,

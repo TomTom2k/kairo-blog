@@ -19,49 +19,68 @@ interface AdminComment {
   };
 }
 
+import ConfirmDialog from "../components/ConfirmDialog";
+
 export default function AdminCommentsPage() {
   const [comments, setComments] = useState<AdminComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [selectedPostId, setSelectedPostId] = useState<string>("all");
   const supabase = createClient();
 
   useEffect(() => {
-    loadComments();
+    loadData();
   }, []);
 
-  async function loadComments() {
+  async function loadData() {
     setLoading(true);
     try {
-      // Need to join with posts to get post title/slug
-      const { data, error } = await supabase
-        .from("comments")
-        .select(
-          `
+      // Load comments and posts in parallel
+      const [commentsRes, postsRes] = await Promise.all([
+        supabase
+          .from("comments")
+          .select(
+            `
           *,
           post:posts (
             slug,
             languages
           )
         `,
-        )
-        .order("created_at", { ascending: false });
+          )
+          .order("created_at", { ascending: false }),
+        postService.getLiteList(),
+      ]);
 
-      if (error) throw error;
-      setComments(data as any);
+      if (commentsRes.error) throw commentsRes.error;
+      setComments(commentsRes.data as any);
+      setPosts(postsRes || []);
     } catch (error) {
-      console.error("Failed to load comments:", error);
+      console.error("Failed to load data:", error);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Bạn có chắc chắn muốn xóa bình luận này không?")) return;
+  const filteredComments =
+    selectedPostId === "all"
+      ? comments
+      : comments.filter((c) => c.post_id === selectedPostId);
 
-    setDeletingId(id);
+  function handleDeleteClick(id: string) {
+    setCommentToDelete(id);
+  }
+
+  async function handleConfirmDelete() {
+    if (!commentToDelete) return;
+
+    setDeletingId(commentToDelete);
     try {
-      await engagementService.deleteComment(id);
-      setComments(comments.filter((c) => c.id !== id));
+      await engagementService.deleteComment(commentToDelete);
+      setComments(comments.filter((c) => c.id !== commentToDelete));
+      setCommentToDelete(null);
     } catch (error) {
       console.error("Failed to delete comment:", error);
       alert("Không thể xóa bình luận. Vui lòng thử lại.");
@@ -80,22 +99,41 @@ export default function AdminCommentsPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="p-3 bg-primary/10 rounded-xl text-primary">
-          <MessageSquare className="w-8 h-8" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-primary/10 rounded-xl text-primary">
+            <MessageSquare className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              Quản lý bình luận
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Xem và quản lý tất cả bình luận từ người đọc (
+              {filteredComments.length})
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Quản lý bình luận
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Xem và quản lý tất cả bình luận từ người đọc ({comments.length})
-          </p>
+
+        {/* Post Filter */}
+        <div className="min-w-[250px]">
+          <select
+            value={selectedPostId}
+            onChange={(e) => setSelectedPostId(e.target.value)}
+            className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary truncate"
+          >
+            <option value="all">Tất cả bài viết</option>
+            {posts.map((post) => (
+              <option key={post.id} value={post.id}>
+                {post.languages?.vi?.title || post.slug}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-        {comments.length === 0 ? (
+        {filteredComments.length === 0 ? (
           <div className="text-center py-20">
             <MessageSquare className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
             <h3 className="text-lg font-medium text-muted-foreground">
@@ -115,7 +153,7 @@ export default function AdminCommentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {comments.map((comment) => (
+                {filteredComments.map((comment) => (
                   <tr
                     key={comment.id}
                     className="hover:bg-muted/30 transition-colors"
@@ -160,7 +198,7 @@ export default function AdminCommentsPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => handleDelete(comment.id)}
+                        onClick={() => handleDeleteClick(comment.id)}
                         disabled={deletingId === comment.id}
                         className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-50"
                         title="Xóa bình luận"
@@ -179,6 +217,17 @@ export default function AdminCommentsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!commentToDelete}
+        onClose={() => setCommentToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Xóa bình luận"
+        description="Bạn có chắc chắn muốn xóa bình luận này không? Hành động này không thể hoàn tác."
+        confirmText="Xóa vĩnh viễn"
+        variant="danger"
+        loading={!!deletingId}
+      />
     </div>
   );
 }

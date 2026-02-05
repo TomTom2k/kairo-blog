@@ -143,7 +143,7 @@ export default function PostsPage() {
       ),
     },
     {
-      key: "view_count",
+      key: "views",
       title: "Lượt xem",
       render: (value) => (
         <div className="flex items-center gap-1.5 text-muted-foreground">
