@@ -23,6 +23,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { postService } from "@/services/post-service";
 import { tagService, Tag } from "@/services/tag-service";
+import { storageService } from "@/services/storage-service";
 import RichTextEditor from "./RichTextEditor";
 
 const postSchema = z.object({
@@ -56,6 +57,25 @@ export default function PostEditor({ postId }: PostEditorProps) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showSEO, setShowSEO] = useState(false);
   const [activeTab, setActiveTab] = useState<"vi" | "en">("vi");
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+
+  const handleThumbnailUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingThumbnail(true);
+    try {
+      const url = await storageService.uploadPostImage(file);
+      setValue("thumbnail", url);
+    } catch (error) {
+      console.error("Failed to upload thumbnail:", error);
+      alert("Lỗi khi tải ảnh lên");
+    } finally {
+      setUploadingThumbnail(false);
+    }
+  };
 
   const {
     register,
@@ -300,34 +320,41 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 </button>
               </div>
 
-              <div>
+              {/* Tiêu đề */}
+              <div className={activeTab === "vi" ? "block" : "hidden"}>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Tiêu đề{" "}
-                  {activeTab === "vi" && (
-                    <span className="text-destructive">*</span>
-                  )}
+                  Tiêu đề <span className="text-destructive">*</span>
                 </label>
                 <input
-                  {...register(activeTab === "vi" ? "title" : "title_en")}
+                  {...register("title")}
                   type="text"
-                  placeholder={
-                    activeTab === "vi"
-                      ? "Nhập tiêu đề bài viết..."
-                      : "Enter post title..."
-                  }
+                  placeholder="Nhập tiêu đề bài viết..."
                   className={`w-full px-4 py-3 rounded-lg border bg-background text-foreground text-lg placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary ${
-                    activeTab === "vi" && errors.title
+                    errors.title
                       ? "border-destructive focus:ring-destructive"
                       : "border-input"
                   }`}
                 />
-                {activeTab === "vi" && errors.title && (
+                {errors.title && (
                   <p className="text-xs text-destructive mt-1">
                     {errors.title.message}
                   </p>
                 )}
               </div>
 
+              <div className={activeTab === "en" ? "block" : "hidden"}>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Title (EN)
+                </label>
+                <input
+                  {...register("title_en")}
+                  type="text"
+                  placeholder="Enter post title..."
+                  className="w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground text-lg placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              {/* Slug (chỉ hiện ở tab VI vì dùng chung) */}
               {activeTab === "vi" && (
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -353,39 +380,62 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 </div>
               )}
 
-              <div>
+              {/* Nội dung */}
+              <div className={activeTab === "vi" ? "block" : "hidden"}>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Nội dung
+                  Nội dung (VN)
                 </label>
                 <Controller
-                  name={activeTab === "vi" ? "content" : "content_en"}
+                  name="content"
                   control={control}
                   render={({ field }) => (
                     <RichTextEditor
                       value={field.value || ""}
                       onChange={field.onChange}
-                      placeholder={
-                        activeTab === "vi"
-                          ? "Viết nội dung bài viết của bạn..."
-                          : "Write your post content..."
-                      }
+                      placeholder="Viết nội dung bài viết của bạn..."
                     />
                   )}
                 />
               </div>
 
-              <div>
+              <div className={activeTab === "en" ? "block" : "hidden"}>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Tóm tắt
+                  Content (EN)
+                </label>
+                <Controller
+                  name="content_en"
+                  control={control}
+                  render={({ field }) => (
+                    <RichTextEditor
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder="Write your post content..."
+                    />
+                  )}
+                />
+              </div>
+
+              {/* Tóm tắt */}
+              <div className={activeTab === "vi" ? "block" : "hidden"}>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Tóm tắt (VN)
                 </label>
                 <textarea
-                  {...register(activeTab === "vi" ? "excerpt" : "excerpt_en")}
+                  {...register("excerpt")}
                   rows={3}
-                  placeholder={
-                    activeTab === "vi"
-                      ? "Tóm tắt ngắn gọn về bài viết..."
-                      : "Brief summary of the post..."
-                  }
+                  placeholder="Tóm tắt ngắn gọn về bài viết..."
+                  className="w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                />
+              </div>
+
+              <div className={activeTab === "en" ? "block" : "hidden"}>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  Excerpt (EN)
+                </label>
+                <textarea
+                  {...register("excerpt_en")}
+                  rows={3}
+                  placeholder="Brief summary of the post..."
                   className="w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 />
               </div>
@@ -547,24 +597,61 @@ export default function PostEditor({ postId }: PostEditorProps) {
                     />
                     <button
                       type="button"
-                      onClick={() => setValue("thumbnail", "")}
+                      onClick={() => {
+                        storageService.deletePostImage(thumbnailValue);
+                        setValue("thumbnail", "");
+                      }}
                       className="absolute top-2 right-2 p-1 rounded-full bg-black/50 text-white hover:bg-black/70"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                    <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Chưa có ảnh đại diện
-                    </p>
-                    <input
-                      {...register("thumbnail")}
-                      type="url"
-                      placeholder="Nhập URL ảnh..."
-                      className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                    {uploadingThumbnail ? (
+                      <div className="flex flex-col items-center py-4">
+                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          Đang tải lên...
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Kéo thả hoặc nhấp để tải ảnh lên
+                        </p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleThumbnailUpload}
+                          className="hidden"
+                          id="thumbnail-upload"
+                        />
+                        <label
+                          htmlFor="thumbnail-upload"
+                          className="inline-flex items-center px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors cursor-pointer text-sm font-medium mb-4"
+                        >
+                          Chọn tập tin
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t border-border" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-card px-2 text-muted-foreground">
+                              Hoặc dán URL
+                            </span>
+                          </div>
+                        </div>
+                        <input
+                          {...register("thumbnail")}
+                          type="url"
+                          placeholder="Nhập URL ảnh..."
+                          className="w-full mt-4 px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEffect, useRef } from "react";
+import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -8,6 +9,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { Markdown } from "tiptap-markdown";
 import { common, createLowlight } from "lowlight";
+import { storageService } from "@/services/storage-service";
 import {
   Bold,
   Italic,
@@ -33,14 +35,40 @@ interface RichTextEditorProps {
 }
 
 const MenuBar = ({ editor }: { editor: any }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   if (!editor) {
     return null;
   }
 
-  const addImage = () => {
-    const url = window.prompt("Nhập URL ảnh:");
-    if (url) {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const url = await storageService.uploadPostImage(file);
       editor.chain().focus().setImage({ src: url }).run();
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      alert("Lỗi khi tải ảnh lên");
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const addImage = () => {
+    const choice = window.confirm(
+      "Bạn muốn tải ảnh lên (OK) hay nhập URL (Cancel)?",
+    );
+    if (choice) {
+      fileInputRef.current?.click();
+    } else {
+      const url = window.prompt("Nhập URL ảnh:");
+      if (url) {
+        editor.chain().focus().setImage({ src: url }).run();
+      }
     }
   };
 
@@ -195,6 +223,13 @@ const MenuBar = ({ editor }: { editor: any }) => {
       >
         <ImageIcon className="w-4 h-4" />
       </button>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        className="hidden"
+      />
       <div className="flex-1" />
       <button
         type="button"
@@ -258,10 +293,29 @@ export default function RichTextEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      // @ts-ignore - The markdown extension adds a getMarkdown method
-      onChange(editor.getMarkdown());
+      // @ts-ignore - Safely get markdown from extension storage or method
+      const markdown =
+        editor.storage?.markdown?.getMarkdown?.() ||
+        // @ts-ignore
+        (typeof editor.getMarkdown === "function" ? editor.getMarkdown() : "");
+      onChange(markdown);
     },
   });
+
+  // Sync content when value changes from outside
+  useEffect(() => {
+    if (editor && value !== undefined) {
+      // @ts-ignore
+      const currentMarkdown =
+        editor.storage?.markdown?.getMarkdown?.() ||
+        // @ts-ignore
+        (typeof editor.getMarkdown === "function" ? editor.getMarkdown() : "");
+
+      if (value !== currentMarkdown) {
+        editor.commands.setContent(value);
+      }
+    }
+  }, [value, editor]);
 
   return (
     <div className="w-full border border-input rounded-lg bg-background overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-0 transition-all">

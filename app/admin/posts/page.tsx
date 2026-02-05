@@ -122,6 +122,27 @@ export default function PostsPage() {
       ),
     },
     {
+      key: "tags",
+      title: "Thẻ",
+      render: (_, row) => (
+        <div className="flex flex-wrap gap-1">
+          {row.tags?.map((tag: any) => (
+            <span
+              key={tag.id}
+              className="px-2 py-0.5 rounded bg-secondary text-secondary-foreground text-[10px] font-medium"
+            >
+              {tag.name}
+            </span>
+          ))}
+          {!row.tags?.length && (
+            <span className="text-muted-foreground text-xs italic">
+              Không có thẻ
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
       key: "view_count",
       title: "Lượt xem",
       render: (value) => (
@@ -227,6 +248,14 @@ export default function PostsPage() {
             keyField="id"
             actions={(post) => (
               <div className="flex items-center gap-1">
+                <Link
+                  href={`/blog/${post.slug}`}
+                  target="_blank"
+                  className="p-1.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                  title="Xem ngoài trang chủ"
+                >
+                  <Eye className="w-4 h-4" />
+                </Link>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -247,9 +276,10 @@ export default function PostsPage() {
                 </button>
                 <Link
                   href={`/admin/posts/${post.id}`}
-                  className="p-1.5 rounded hover:bg-muted transition-colors"
+                  className="p-1.5 rounded hover:bg-blue-500/10 text-muted-foreground hover:text-blue-500 transition-colors"
+                  title="Chỉnh sửa"
                 >
-                  <Pencil className="w-4 h-4 text-muted-foreground" />
+                  <Pencil className="w-4 h-4" />
                 </Link>
                 <button
                   onClick={(e) => {

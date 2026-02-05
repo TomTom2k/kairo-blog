@@ -20,7 +20,7 @@ export interface Post {
   };
   published: boolean;
   thumbnail?: string;
-  view_count?: number;
+  views?: number;
   created_at: string;
   published_at?: string;
   updated_at?: string;
@@ -29,7 +29,7 @@ export interface Post {
 
 export type CreatePostInput = Omit<
   Post,
-  "id" | "created_at" | "view_count" | "tags" | "published_at" | "updated_at"
+  "id" | "created_at" | "views" | "tags" | "published_at" | "updated_at"
 >;
 export type UpdatePostInput = Partial<CreatePostInput> & { id: string };
 
@@ -49,7 +49,7 @@ export const postService = {
   }) {
     let query = supabase
       .from("posts")
-      .select("*", { count: "exact" })
+      .select("*, post_tags(tags(*))", { count: "exact" })
       .order("created_at", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -67,8 +67,17 @@ export const postService = {
     const { data, count, error } = await query;
     if (error) throw error;
 
+    const posts = (data as any[]).map((post) => {
+      if (post.post_tags) {
+        post.tags = post.post_tags
+          .filter((pt: any) => pt.tags)
+          .map((pt: any) => pt.tags);
+      }
+      return post as Post;
+    });
+
     return {
-      posts: (data as Post[]) || [],
+      posts: posts || [],
       total: count || 0,
     };
   },
@@ -82,6 +91,27 @@ export const postService = {
 
     if (error) throw error;
     return data;
+  },
+
+  async getBySlug(slug: string) {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*, post_tags(tags(*))")
+      .eq("slug", slug)
+      .eq("published", true)
+      .single();
+
+    if (error) throw error;
+
+    // Flatten tags for easier access
+    const post = data as any;
+    if (post.post_tags) {
+      post.tags = post.post_tags
+        .filter((pt: any) => pt.tags)
+        .map((pt: any) => pt.tags);
+    }
+
+    return post as Post;
   },
 
   async create(post: CreatePostInput, tagIds: string[] = []) {
@@ -141,5 +171,129 @@ export const postService = {
       .update({ published })
       .eq("id", id);
     if (error) throw error;
+  },
+
+  /**
+   * Get hot posts sorted by view count
+   */
+  async getHotPosts(limit: number = 5) {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*, post_tags(tags(*))")
+      .eq("published", true)
+      .order("views", { ascending: false, nullsFirst: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    const posts = (data as any[]).map((post) => {
+      if (post.post_tags) {
+        post.tags = post.post_tags
+          .filter((pt: any) => pt.tags)
+          .map((pt: any) => pt.tags);
+      }
+      return post as Post;
+    });
+
+    return posts;
+  },
+
+  /**
+   * Get featured posts (you can add a 'featured' boolean column to posts table)
+   * For now, just return the most recent published posts
+   */
+  async getFeaturedPosts(limit: number = 3) {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*, post_tags(tags(*))")
+      .eq("published", true)
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    const posts = (data as any[]).map((post) => {
+      if (post.post_tags) {
+        post.tags = post.post_tags
+          .filter((pt: any) => pt.tags)
+          .map((pt: any) => pt.tags);
+      }
+      return post as Post;
+    });
+
+    return posts;
+  },
+
+  /**
+   * Get most read posts (same as hot posts for now)
+   */
+  async getMostReadPosts(limit: number = 5) {
+    return this.getHotPosts(limit);
+  },
+
+  /**
+   * Get posts filtered by tag
+   */
+  async getByTag({
+    tagId,
+    page = 1,
+    pageSize = 12,
+  }: {
+    tagId: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const { data, count, error } = await supabase
+      .from("posts")
+      .select("*, post_tags!inner(tags(*))", { count: "exact" })
+      .eq("published", true)
+      .eq("post_tags.tag_id", tagId)
+      .order("created_at", { ascending: false })
+      .range((page - 1) * pageSize, page * pageSize - 1);
+
+    if (error) throw error;
+
+    const posts = (data as any[]).map((post) => {
+      if (post.post_tags) {
+        post.tags = post.post_tags
+          .filter((pt: any) => pt.tags)
+          .map((pt: any) => pt.tags);
+      }
+      return post as Post;
+    });
+
+    return {
+      posts: posts || [],
+      total: count || 0,
+    };
+  },
+
+  /**
+   * Increment view count for a post
+   */
+  async incrementViewCount(slug: string) {
+    // First get the current view count
+    const { data: post, error: fetchError } = await supabase
+      .from("posts")
+      .select("views")
+      .eq("slug", slug)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching post for view count:", fetchError);
+      return;
+    }
+
+    const currentCount = post?.views || 0;
+
+    const { error } = await supabase
+      .from("posts")
+      .update({ views: currentCount + 1 })
+      .eq("slug", slug);
+
+    if (error) {
+      console.error("Error incrementing view count:", error);
+    }
   },
 };

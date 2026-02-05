@@ -10,6 +10,7 @@ import {
   LogOut,
   ChevronLeft,
   PenSquare,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -28,6 +29,11 @@ const navItems = [
     title: "Thẻ",
     href: "/admin/tags",
     icon: Tags,
+  },
+  {
+    title: "Bình luận",
+    href: "/admin/comments",
+    icon: MessageSquare,
   },
   {
     title: "Cài đặt",
