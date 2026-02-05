@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import Header from "../components/Header";
 import DataTable, { Column } from "../components/DataTable";
 import Link from "next/link";
@@ -16,16 +15,7 @@ import {
   FileText,
   Filter,
 } from "lucide-react";
-
-interface Post {
-  id: string;
-  title: string;
-  slug: string;
-  published: boolean;
-  created_at: string;
-  view_count?: number;
-  tags?: { id: string; name: string }[];
-}
+import { postService, Post } from "@/services/post-service";
 
 export default function PostsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -38,34 +28,22 @@ export default function PostsPage() {
   const [total, setTotal] = useState(0);
   const pageSize = 10;
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-
   const fetchPosts = async () => {
     setLoading(true);
-
-    let query = supabase
-      .from("posts")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range((page - 1) * pageSize, page * pageSize - 1);
-
-    if (search) {
-      query = query.ilike("title", `%${search}%`);
+    try {
+      const { posts, total } = await postService.getAll({
+        page,
+        pageSize,
+        search,
+        status: statusFilter,
+      });
+      setPosts(posts);
+      setTotal(total);
+    } catch (error) {
+      console.error("Failed to fetch posts:", error);
+    } finally {
+      setLoading(false);
     }
-
-    if (statusFilter === "published") {
-      query = query.eq("published", true);
-    } else if (statusFilter === "draft") {
-      query = query.eq("published", false);
-    }
-
-    const { data, count } = await query;
-    setPosts((data as Post[]) || []);
-    setTotal(count || 0);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -74,16 +52,21 @@ export default function PostsPage() {
 
   const handleDelete = async (post: Post) => {
     if (!confirm(`Bạn chắc chắn muốn xóa bài viết "${post.title}"?`)) return;
-    await supabase.from("posts").delete().eq("id", post.id);
-    fetchPosts();
+    try {
+      await postService.delete(post.id);
+      fetchPosts();
+    } catch (error) {
+      console.error("Failed to delete post:", error);
+    }
   };
 
   const togglePublish = async (post: Post) => {
-    await supabase
-      .from("posts")
-      .update({ published: !post.published })
-      .eq("id", post.id);
-    fetchPosts();
+    try {
+      await postService.togglePublish(post.id, !post.published);
+      fetchPosts();
+    } catch (error) {
+      console.error("Failed to toggle publish status:", error);
+    }
   };
 
   const columns: Column<Post>[] = [

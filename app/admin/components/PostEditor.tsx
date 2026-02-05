@@ -19,32 +19,33 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+
+const postSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(1, "Tiêu đề không được để trống"),
+  title_en: z.string().optional(),
+  slug: z.string().min(1, "Slug không được để trống"),
+  content: z.string().optional(),
+  content_en: z.string().optional(),
+  excerpt: z.string().optional(),
+  excerpt_en: z.string().optional(),
+  published: z.boolean().default(false),
+  featured_image: z.string().optional(),
+  meta_title: z.string().optional(),
+  meta_description: z.string().optional(),
+  canonical_url: z.string().optional(),
+  og_image: z.string().optional(),
+  focus_keywords: z.string().optional(),
+});
+
+type PostFormValues = z.infer<typeof postSchema>;
 
 interface Tag {
   id: string;
   name: string;
-  color?: string;
-}
-
-interface PostData {
-  id?: string;
-  title: string;
-  title_en?: string;
-  slug: string;
-  content: string;
-  content_en?: string;
-  excerpt?: string;
-  excerpt_en?: string;
-  published: boolean;
-  featured_image?: string;
-  // SEO Fields
-  meta_title?: string;
-  meta_description?: string;
-  canonical_url?: string;
-  og_image?: string;
-  focus_keywords?: string;
-  // Relations
-  tag_ids?: string[];
 }
 
 interface PostEditorProps {
@@ -54,33 +55,51 @@ interface PostEditorProps {
 export default function PostEditor({ postId }: PostEditorProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showSEO, setShowSEO] = useState(false);
   const [activeTab, setActiveTab] = useState<"vi" | "en">("vi");
 
-  const [formData, setFormData] = useState<PostData>({
-    title: "",
-    title_en: "",
-    slug: "",
-    content: "",
-    content_en: "",
-    excerpt: "",
-    excerpt_en: "",
-    published: false,
-    featured_image: "",
-    meta_title: "",
-    meta_description: "",
-    canonical_url: "",
-    og_image: "",
-    focus_keywords: "",
-  });
-
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<PostFormValues>({
+    resolver: zodResolver(postSchema),
+    defaultValues: {
+      title: "",
+      title_en: "",
+      slug: "",
+      content: "",
+      content_en: "",
+      excerpt: "",
+      excerpt_en: "",
+      published: false,
+      featured_image: "",
+      meta_title: "",
+      meta_description: "",
+      canonical_url: "",
+      og_image: "",
+      focus_keywords: "",
+    },
+  });
+
+  const titleValue = watch("title");
+  const metaTitleValue = watch("meta_title");
+  const metaDescriptionValue = watch("meta_description");
+  const focusKeywordsValue = watch("focus_keywords");
+  const featuredImageValue = watch("featured_image");
+  const ogImageValue = watch("og_image");
+  const slugValue = watch("slug");
+  const excerptValue = watch("excerpt");
 
   useEffect(() => {
     fetchTags();
@@ -103,7 +122,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
       .single();
 
     if (data) {
-      setFormData({
+      reset({
         id: data.id,
         title: data.title || "",
         title_en: data.title_en || "",
@@ -138,49 +157,23 @@ export default function PostEditor({ postId }: PostEditorProps) {
       .replace(/(^-|-$)/g, "");
   };
 
-  const handleTitleChange = (value: string, lang: "vi" | "en") => {
-    if (lang === "vi") {
-      setFormData((prev) => ({
-        ...prev,
-        title: value,
-        slug: generateSlug(value),
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        title_en: value,
-      }));
+  // Auto-generate slug when title changes (only for new posts)
+  useEffect(() => {
+    if (titleValue && !postId) {
+      setValue("slug", generateSlug(titleValue));
     }
-  };
+  }, [titleValue, setValue, postId]);
 
-  const handleSave = async (publish: boolean = false) => {
-    setSaving(true);
+  const onSubmit = async (values: PostFormValues) => {
     try {
-      const postData = {
-        title: formData.title,
-        title_en: formData.title_en,
-        slug: formData.slug,
-        content: formData.content,
-        content_en: formData.content_en,
-        excerpt: formData.excerpt,
-        excerpt_en: formData.excerpt_en,
-        published: publish ? true : formData.published,
-        featured_image: formData.featured_image,
-        meta_title: formData.meta_title,
-        meta_description: formData.meta_description,
-        canonical_url: formData.canonical_url,
-        og_image: formData.og_image,
-        focus_keywords: formData.focus_keywords,
-      };
+      let savedPostId = values.id;
 
-      let savedPostId = formData.id;
-
-      if (formData.id) {
-        await supabase.from("posts").update(postData).eq("id", formData.id);
+      if (values.id) {
+        await supabase.from("posts").update(values).eq("id", values.id);
       } else {
         const { data } = await supabase
           .from("posts")
-          .insert(postData)
+          .insert(values)
           .select()
           .single();
         savedPostId = data?.id;
@@ -200,8 +193,8 @@ export default function PostEditor({ postId }: PostEditorProps) {
       }
 
       router.push("/admin/posts");
-    } finally {
-      setSaving(false);
+    } catch (error) {
+      console.error("Failed to save post:", error);
     }
   };
 
@@ -215,10 +208,10 @@ export default function PostEditor({ postId }: PostEditorProps) {
 
   const seoScore = (() => {
     let score = 0;
-    if (formData.meta_title) score += 25;
-    if (formData.meta_description) score += 25;
-    if (formData.focus_keywords) score += 25;
-    if (formData.og_image || formData.featured_image) score += 25;
+    if (metaTitleValue) score += 25;
+    if (metaDescriptionValue) score += 25;
+    if (focusKeywordsValue) score += 25;
+    if (ogImageValue || featuredImageValue) score += 25;
     return score;
   })();
 
@@ -237,11 +230,14 @@ export default function PostEditor({ postId }: PostEditorProps) {
     <>
       <Header
         title={postId ? "Chỉnh sửa bài viết" : "Viết bài mới"}
-        subtitle={formData.title || "Chưa có tiêu đề"}
+        subtitle={titleValue || "Chưa có tiêu đề"}
       />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-6">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="max-w-6xl mx-auto p-6"
+        >
           {/* Top Actions */}
           <div className="flex items-center justify-between mb-6">
             <Link
@@ -254,20 +250,25 @@ export default function PostEditor({ postId }: PostEditorProps) {
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() => handleSave(false)}
-                disabled={saving || !formData.title}
+                type="button"
+                onClick={() => {
+                  setValue("published", false);
+                  handleSubmit(onSubmit)();
+                }}
+                disabled={isSubmitting || !titleValue}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
                 Lưu nháp
               </button>
               <button
-                onClick={() => handleSave(true)}
-                disabled={saving || !formData.title}
+                type="submit"
+                onClick={() => setValue("published", true)}
+                disabled={isSubmitting || !titleValue}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 <Eye className="w-4 h-4" />
-                {saving ? "Đang lưu..." : "Xuất bản"}
+                {isSubmitting ? "Đang lưu..." : "Xuất bản"}
               </button>
             </div>
           </div>
@@ -278,6 +279,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
               {/* Language Tabs */}
               <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
                 <button
+                  type="button"
                   onClick={() => setActiveTab("vi")}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     activeTab === "vi"
@@ -288,6 +290,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
                   🇻🇳 Tiếng Việt
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveTab("en")}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                     activeTab === "en"
@@ -308,20 +311,24 @@ export default function PostEditor({ postId }: PostEditorProps) {
                   )}
                 </label>
                 <input
+                  {...register(activeTab === "vi" ? "title" : "title_en")}
                   type="text"
-                  value={
-                    activeTab === "vi"
-                      ? formData.title
-                      : formData.title_en || ""
-                  }
-                  onChange={(e) => handleTitleChange(e.target.value, activeTab)}
                   placeholder={
                     activeTab === "vi"
                       ? "Nhập tiêu đề bài viết..."
                       : "Enter post title..."
                   }
-                  className="w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground text-lg placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className={`w-full px-4 py-3 rounded-lg border bg-background text-foreground text-lg placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary ${
+                    activeTab === "vi" && errors.title
+                      ? "border-destructive focus:ring-destructive"
+                      : "border-input"
+                  }`}
                 />
+                {activeTab === "vi" && errors.title && (
+                  <p className="text-xs text-destructive mt-1">
+                    {errors.title.message}
+                  </p>
+                )}
               </div>
 
               {/* Slug */}
@@ -333,17 +340,20 @@ export default function PostEditor({ postId }: PostEditorProps) {
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">/blog/</span>
                     <input
+                      {...register("slug")}
                       type="text"
-                      value={formData.slug}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          slug: e.target.value,
-                        }))
-                      }
-                      className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      className={`flex-1 px-3 py-2 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary ${
+                        errors.slug
+                          ? "border-destructive focus:ring-destructive"
+                          : "border-input"
+                      }`}
                     />
                   </div>
+                  {errors.slug && (
+                    <p className="text-xs text-destructive mt-1">
+                      {errors.slug.message}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -353,18 +363,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
                   Nội dung
                 </label>
                 <textarea
-                  value={
-                    activeTab === "vi"
-                      ? formData.content
-                      : formData.content_en || ""
-                  }
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      [activeTab === "vi" ? "content" : "content_en"]:
-                        e.target.value,
-                    }))
-                  }
+                  {...register(activeTab === "vi" ? "content" : "content_en")}
                   rows={15}
                   placeholder={
                     activeTab === "vi"
@@ -381,18 +380,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
                   Tóm tắt
                 </label>
                 <textarea
-                  value={
-                    activeTab === "vi"
-                      ? formData.excerpt || ""
-                      : formData.excerpt_en || ""
-                  }
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      [activeTab === "vi" ? "excerpt" : "excerpt_en"]:
-                        e.target.value,
-                    }))
-                  }
+                  {...register(activeTab === "vi" ? "excerpt" : "excerpt_en")}
                   rows={3}
                   placeholder={
                     activeTab === "vi"
@@ -406,6 +394,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
               {/* SEO Section */}
               <div className="rounded-xl border border-border bg-card">
                 <button
+                  type="button"
                   onClick={() => setShowSEO(!showSEO)}
                   className="w-full flex items-center justify-between p-4 text-left"
                 >
@@ -458,20 +447,14 @@ export default function PostEditor({ postId }: PostEditorProps) {
                         Meta Title
                       </label>
                       <input
+                        {...register("meta_title")}
                         type="text"
-                        value={formData.meta_title || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            meta_title: e.target.value,
-                          }))
-                        }
                         placeholder="Tiêu đề hiển thị trên Google..."
                         maxLength={60}
                         className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        {(formData.meta_title || "").length}/60 ký tự
+                        {(metaTitleValue || "").length}/60 ký tự
                       </p>
                     </div>
 
@@ -482,20 +465,14 @@ export default function PostEditor({ postId }: PostEditorProps) {
                         Meta Description
                       </label>
                       <textarea
-                        value={formData.meta_description || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            meta_description: e.target.value,
-                          }))
-                        }
+                        {...register("meta_description")}
                         placeholder="Mô tả ngắn hiển thị trên kết quả tìm kiếm..."
                         maxLength={160}
                         rows={3}
                         className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        {(formData.meta_description || "").length}/160 ký tự
+                        {(metaDescriptionValue || "").length}/160 ký tự
                       </p>
                     </div>
 
@@ -506,14 +483,8 @@ export default function PostEditor({ postId }: PostEditorProps) {
                         Focus Keywords
                       </label>
                       <input
+                        {...register("focus_keywords")}
                         type="text"
-                        value={formData.focus_keywords || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            focus_keywords: e.target.value,
-                          }))
-                        }
                         placeholder="Từ khóa chính, từ khóa phụ, ..."
                         className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                       />
@@ -526,14 +497,8 @@ export default function PostEditor({ postId }: PostEditorProps) {
                         Canonical URL
                       </label>
                       <input
+                        {...register("canonical_url")}
                         type="url"
-                        value={formData.canonical_url || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            canonical_url: e.target.value,
-                          }))
-                        }
                         placeholder="https://yourblog.com/original-post"
                         className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                       />
@@ -546,14 +511,8 @@ export default function PostEditor({ postId }: PostEditorProps) {
                         OG Image URL
                       </label>
                       <input
+                        {...register("og_image")}
                         type="url"
-                        value={formData.og_image || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            og_image: e.target.value,
-                          }))
-                        }
                         placeholder="https://yourblog.com/images/og-image.png"
                         className="w-full px-3 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                       />
@@ -566,17 +525,14 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       </p>
                       <div className="space-y-1">
                         <p className="text-blue-600 text-lg hover:underline cursor-pointer line-clamp-1">
-                          {formData.meta_title ||
-                            formData.title ||
-                            "Tiêu đề bài viết"}
+                          {metaTitleValue || titleValue || "Tiêu đề bài viết"}
                         </p>
                         <p className="text-emerald-700 text-sm">
-                          yourblog.com › blog ›{" "}
-                          {formData.slug || "url-bai-viet"}
+                          yourblog.com › blog › {slugValue || "url-bai-viet"}
                         </p>
                         <p className="text-sm text-muted-foreground line-clamp-2">
-                          {formData.meta_description ||
-                            formData.excerpt ||
+                          {metaDescriptionValue ||
+                            excerptValue ||
                             "Mô tả bài viết sẽ hiển thị ở đây..."}
                         </p>
                       </div>
@@ -593,17 +549,16 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 <h3 className="font-semibold text-foreground mb-3">
                   Ảnh đại diện
                 </h3>
-                {formData.featured_image ? (
+                {featuredImageValue ? (
                   <div className="relative">
                     <img
-                      src={formData.featured_image}
+                      src={featuredImageValue}
                       alt="Featured"
                       className="w-full h-40 object-cover rounded-lg"
                     />
                     <button
-                      onClick={() =>
-                        setFormData((prev) => ({ ...prev, featured_image: "" }))
-                      }
+                      type="button"
+                      onClick={() => setValue("featured_image", "")}
                       className="absolute top-2 right-2 p-1 rounded-full bg-black/50 text-white hover:bg-black/70"
                     >
                       <X className="w-4 h-4" />
@@ -619,10 +574,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       type="url"
                       placeholder="Nhập URL ảnh..."
                       onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          featured_image: e.target.value,
-                        }))
+                        setValue("featured_image", e.target.value)
                       }
                       className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     />
@@ -637,6 +589,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
                   {tags.map((tag) => (
                     <button
                       key={tag.id}
+                      type="button"
                       onClick={() => toggleTag(tag.id)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         selectedTags.includes(tag.id)
@@ -669,14 +622,8 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 </h3>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
+                    {...register("published")}
                     type="checkbox"
-                    checked={formData.published}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        published: e.target.checked,
-                      }))
-                    }
                     className="w-5 h-5 rounded border-input text-primary focus:ring-primary"
                   />
                   <span className="text-foreground">Đã xuất bản</span>
@@ -684,7 +631,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
               </div>
             </div>
           </div>
-        </div>
+        </form>
       </div>
     </>
   );
