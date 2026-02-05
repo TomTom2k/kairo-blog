@@ -6,13 +6,17 @@ import DataTable, { Column } from "../components/DataTable";
 import TagDialog from "../components/TagDialog";
 import { Plus, Search, Pencil, Trash2, Tags as TagsIcon } from "lucide-react";
 import { tagService, Tag } from "@/services/tag-service";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function TagsPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [tagToDelete, setTagToDelete] = useState<Tag | null>(null);
 
   const fetchTags = async () => {
     setLoading(true);
@@ -54,13 +58,23 @@ export default function TagsPage() {
     }
   };
 
-  const handleDelete = async (tag: Tag) => {
-    if (!confirm(`Bạn chắc chắn muốn xóa thẻ "${tag.name}"?`)) return;
+  const handleDelete = (tag: Tag) => {
+    setTagToDelete(tag);
+    setConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!tagToDelete) return;
+    setIsDeleting(true);
     try {
-      await tagService.delete(tag.id);
+      await tagService.delete(tagToDelete.id);
       fetchTags();
+      setConfirmOpen(false);
+      setTagToDelete(null);
     } catch (error) {
       console.error("Failed to delete tag:", error);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -89,15 +103,6 @@ export default function TagsPage() {
         <code className="px-2 py-1 rounded bg-muted text-sm text-muted-foreground">
           /{String(value)}
         </code>
-      ),
-    },
-    {
-      key: "created_at",
-      title: "Ngày tạo",
-      render: (value) => (
-        <span className="text-muted-foreground text-sm">
-          {new Date(String(value)).toLocaleDateString("vi-VN")}
-        </span>
       ),
     },
   ];
@@ -182,6 +187,18 @@ export default function TagsPage() {
         }}
         onSave={handleSave}
         tag={editingTag}
+      />
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => {
+          setConfirmOpen(false);
+          setTagToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Xóa thẻ"
+        description={`Bạn chắc chắn muốn xóa thẻ "${tagToDelete?.name}"? Hành động này không thể hoàn tác.`}
+        loading={isDeleting}
       />
     </>
   );

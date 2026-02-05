@@ -4,10 +4,9 @@ export interface Tag {
   id: string;
   name: string;
   slug: string;
-  created_at: string;
 }
 
-export type CreateTagInput = Omit<Tag, "id" | "created_at">;
+export type CreateTagInput = Omit<Tag, "id">;
 export type UpdateTagInput = Partial<CreateTagInput> & { id: string };
 
 const supabase = createClient();
@@ -17,7 +16,7 @@ export const tagService = {
     let query = supabase
       .from("tags")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("name", { ascending: true });
 
     if (search) {
       query = query.ilike("name", `%${search}%`);

@@ -16,16 +16,20 @@ import {
   Filter,
 } from "lucide-react";
 import { postService, Post } from "@/services/post-service";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function PostsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "published" | "draft"
   >("all");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null);
   const pageSize = 10;
 
   const fetchPosts = async () => {
@@ -50,13 +54,23 @@ export default function PostsPage() {
     fetchPosts();
   }, [search, statusFilter, page]);
 
-  const handleDelete = async (post: Post) => {
-    if (!confirm(`Bạn chắc chắn muốn xóa bài viết "${post.title}"?`)) return;
+  const handleDelete = (post: Post) => {
+    setPostToDelete(post);
+    setConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!postToDelete) return;
+    setIsDeleting(true);
     try {
-      await postService.delete(post.id);
+      await postService.delete(postToDelete.id);
       fetchPosts();
+      setConfirmOpen(false);
+      setPostToDelete(null);
     } catch (error) {
       console.error("Failed to delete post:", error);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -258,6 +272,18 @@ export default function PostsPage() {
           />
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => {
+          setConfirmOpen(false);
+          setPostToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Xóa bài viết"
+        description={`Bạn chắc chắn muốn xóa bài viết "${postToDelete?.title}"? Hành động này không thể hoàn tác.`}
+        loading={isDeleting}
+      />
     </>
   );
 }

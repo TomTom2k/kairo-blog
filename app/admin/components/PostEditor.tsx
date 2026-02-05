@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import Header from "../components/Header";
 import {
   Save,
@@ -22,6 +21,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { postService } from "@/services/post-service";
+import { tagService, Tag } from "@/services/tag-service";
 
 const postSchema = z.object({
   id: z.string().optional(),
@@ -32,8 +33,8 @@ const postSchema = z.object({
   content_en: z.string().optional(),
   excerpt: z.string().optional(),
   excerpt_en: z.string().optional(),
-  published: z.boolean().default(false),
-  featured_image: z.string().optional(),
+  published: z.boolean(),
+  thumbnail: z.string().optional(),
   meta_title: z.string().optional(),
   meta_description: z.string().optional(),
   canonical_url: z.string().optional(),
@@ -42,11 +43,6 @@ const postSchema = z.object({
 });
 
 type PostFormValues = z.infer<typeof postSchema>;
-
-interface Tag {
-  id: string;
-  name: string;
-}
 
 interface PostEditorProps {
   postId?: string;
@@ -59,11 +55,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showSEO, setShowSEO] = useState(false);
   const [activeTab, setActiveTab] = useState<"vi" | "en">("vi");
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
 
   const {
     register,
@@ -83,7 +74,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
       excerpt: "",
       excerpt_en: "",
       published: false,
-      featured_image: "",
+      thumbnail: "",
       meta_title: "",
       meta_description: "",
       canonical_url: "",
@@ -96,7 +87,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
   const metaTitleValue = watch("meta_title");
   const metaDescriptionValue = watch("meta_description");
   const focusKeywordsValue = watch("focus_keywords");
-  const featuredImageValue = watch("featured_image");
+  const thumbnailValue = watch("thumbnail");
   const ogImageValue = watch("og_image");
   const slugValue = watch("slug");
   const excerptValue = watch("excerpt");
@@ -109,41 +100,45 @@ export default function PostEditor({ postId }: PostEditorProps) {
   }, [postId]);
 
   const fetchTags = async () => {
-    const { data } = await supabase.from("tags").select("*").order("name");
-    setTags((data as Tag[]) || []);
+    try {
+      const data = await tagService.getAll();
+      setTags(data);
+    } catch (error) {
+      console.error("Failed to fetch tags:", error);
+    }
   };
 
   const fetchPost = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("posts")
-      .select("*, post_tags(tag_id)")
-      .eq("id", postId)
-      .single();
-
-    if (data) {
-      reset({
-        id: data.id,
-        title: data.title || "",
-        title_en: data.title_en || "",
-        slug: data.slug || "",
-        content: data.content || "",
-        content_en: data.content_en || "",
-        excerpt: data.excerpt || "",
-        excerpt_en: data.excerpt_en || "",
-        published: data.published || false,
-        featured_image: data.featured_image || "",
-        meta_title: data.meta_title || "",
-        meta_description: data.meta_description || "",
-        canonical_url: data.canonical_url || "",
-        og_image: data.og_image || "",
-        focus_keywords: data.focus_keywords || "",
-      });
-      setSelectedTags(
-        data.post_tags?.map((t: { tag_id: string }) => t.tag_id) || [],
-      );
+    try {
+      const data = await postService.getById(postId!);
+      if (data) {
+        reset({
+          id: data.id,
+          title: data.title || "",
+          title_en: data.title_en || "",
+          slug: data.slug || "",
+          content: data.content || "",
+          content_en: data.content_en || "",
+          excerpt: data.excerpt || "",
+          excerpt_en: data.excerpt_en || "",
+          published: data.published || false,
+          thumbnail: data.thumbnail || "",
+          meta_title: data.meta_title || "",
+          meta_description: data.meta_description || "",
+          canonical_url: data.canonical_url || "",
+          og_image: data.og_image || "",
+          focus_keywords: data.focus_keywords || "",
+        });
+        setSelectedTags(
+          data.post_tags?.map((t: { tag_id: string }) => t.tag_id) || [],
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch post:", error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const generateSlug = (title: string) => {
@@ -157,7 +152,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
       .replace(/(^-|-$)/g, "");
   };
 
-  // Auto-generate slug when title changes (only for new posts)
   useEffect(() => {
     if (titleValue && !postId) {
       setValue("slug", generateSlug(titleValue));
@@ -166,32 +160,11 @@ export default function PostEditor({ postId }: PostEditorProps) {
 
   const onSubmit = async (values: PostFormValues) => {
     try {
-      let savedPostId = values.id;
-
       if (values.id) {
-        await supabase.from("posts").update(values).eq("id", values.id);
+        await postService.update(values as any, selectedTags);
       } else {
-        const { data } = await supabase
-          .from("posts")
-          .insert(values)
-          .select()
-          .single();
-        savedPostId = data?.id;
+        await postService.create(values as any, selectedTags);
       }
-
-      // Update tags
-      if (savedPostId) {
-        await supabase.from("post_tags").delete().eq("post_id", savedPostId);
-        if (selectedTags.length > 0) {
-          await supabase.from("post_tags").insert(
-            selectedTags.map((tagId) => ({
-              post_id: savedPostId,
-              tag_id: tagId,
-            })),
-          );
-        }
-      }
-
       router.push("/admin/posts");
     } catch (error) {
       console.error("Failed to save post:", error);
@@ -211,7 +184,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
     if (metaTitleValue) score += 25;
     if (metaDescriptionValue) score += 25;
     if (focusKeywordsValue) score += 25;
-    if (ogImageValue || featuredImageValue) score += 25;
+    if (ogImageValue || thumbnailValue) score += 25;
     return score;
   })();
 
@@ -238,7 +211,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
           onSubmit={handleSubmit(onSubmit)}
           className="max-w-6xl mx-auto p-6"
         >
-          {/* Top Actions */}
           <div className="flex items-center justify-between mb-6">
             <Link
               href="/admin/posts"
@@ -274,9 +246,7 @@ export default function PostEditor({ postId }: PostEditorProps) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Language Tabs */}
               <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
                 <button
                   type="button"
@@ -302,7 +272,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 </button>
               </div>
 
-              {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Tiêu đề{" "}
@@ -331,7 +300,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 )}
               </div>
 
-              {/* Slug */}
               {activeTab === "vi" && (
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5">
@@ -357,7 +325,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 </div>
               )}
 
-              {/* Content */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Nội dung
@@ -374,7 +341,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 />
               </div>
 
-              {/* Excerpt */}
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
                   Tóm tắt
@@ -391,7 +357,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 />
               </div>
 
-              {/* SEO Section */}
               <div className="rounded-xl border border-border bg-card">
                 <button
                   type="button"
@@ -412,7 +377,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {/* SEO Score */}
                     <div className="flex items-center gap-2">
                       <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
                         <div
@@ -440,7 +404,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
 
                 {showSEO && (
                   <div className="p-4 pt-0 space-y-4 border-t border-border">
-                    {/* Meta Title */}
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
                         <Globe className="w-4 h-4 inline mr-1" />
@@ -458,7 +421,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       </p>
                     </div>
 
-                    {/* Meta Description */}
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
                         <FileText className="w-4 h-4 inline mr-1" />
@@ -476,7 +438,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       </p>
                     </div>
 
-                    {/* Focus Keywords */}
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
                         <SearchIcon className="w-4 h-4 inline mr-1" />
@@ -490,7 +451,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       />
                     </div>
 
-                    {/* Canonical URL */}
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
                         <LinkIcon className="w-4 h-4 inline mr-1" />
@@ -504,7 +464,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       />
                     </div>
 
-                    {/* OG Image */}
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1.5">
                         <ImageIcon className="w-4 h-4 inline mr-1" />
@@ -518,7 +477,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       />
                     </div>
 
-                    {/* SEO Preview */}
                     <div className="p-4 bg-muted rounded-lg">
                       <p className="text-xs text-muted-foreground mb-2">
                         Xem trước Google
@@ -542,23 +500,21 @@ export default function PostEditor({ postId }: PostEditorProps) {
               </div>
             </div>
 
-            {/* Sidebar */}
             <div className="space-y-6">
-              {/* Featured Image */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <h3 className="font-semibold text-foreground mb-3">
                   Ảnh đại diện
                 </h3>
-                {featuredImageValue ? (
+                {thumbnailValue ? (
                   <div className="relative">
                     <img
-                      src={featuredImageValue}
+                      src={thumbnailValue}
                       alt="Featured"
                       className="w-full h-40 object-cover rounded-lg"
                     />
                     <button
                       type="button"
-                      onClick={() => setValue("featured_image", "")}
+                      onClick={() => setValue("thumbnail", "")}
                       className="absolute top-2 right-2 p-1 rounded-full bg-black/50 text-white hover:bg-black/70"
                     >
                       <X className="w-4 h-4" />
@@ -571,18 +527,15 @@ export default function PostEditor({ postId }: PostEditorProps) {
                       Chưa có ảnh đại diện
                     </p>
                     <input
+                      {...register("thumbnail")}
                       type="url"
                       placeholder="Nhập URL ảnh..."
-                      onChange={(e) =>
-                        setValue("featured_image", e.target.value)
-                      }
                       className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                 )}
               </div>
 
-              {/* Tags */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <h3 className="font-semibold text-foreground mb-3">Thẻ</h3>
                 <div className="flex flex-wrap gap-2">
@@ -615,7 +568,6 @@ export default function PostEditor({ postId }: PostEditorProps) {
                 </Link>
               </div>
 
-              {/* Status */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <h3 className="font-semibold text-foreground mb-3">
                   Trạng thái

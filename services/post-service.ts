@@ -10,9 +10,11 @@ export interface Post {
   excerpt?: string;
   excerpt_en?: string;
   published: boolean;
-  featured_image?: string;
+  thumbnail?: string;
   view_count?: number;
   created_at: string;
+  published_at?: string;
+  updated_at?: string;
   meta_title?: string;
   meta_description?: string;
   canonical_url?: string;
@@ -23,7 +25,7 @@ export interface Post {
 
 export type CreatePostInput = Omit<
   Post,
-  "id" | "created_at" | "view_count" | "tags"
+  "id" | "created_at" | "view_count" | "tags" | "published_at" | "updated_at"
 >;
 export type UpdatePostInput = Partial<CreatePostInput> & { id: string };
 
