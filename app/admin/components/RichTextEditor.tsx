@@ -293,11 +293,10 @@ export default function RichTextEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      // @ts-ignore - Safely get markdown from extension storage or method
       const markdown =
-        editor.storage?.markdown?.getMarkdown?.() ||
-        // @ts-ignore
-        (typeof editor.getMarkdown === "function" ? editor.getMarkdown() : "");
+        (editor as any).storage?.markdown?.getMarkdown?.() ||
+        (editor as any).getMarkdown?.() ||
+        "";
       onChange(markdown);
     },
   });
@@ -307,9 +306,9 @@ export default function RichTextEditor({
     if (editor && value !== undefined) {
       // @ts-ignore
       const currentMarkdown =
-        editor.storage?.markdown?.getMarkdown?.() ||
-        // @ts-ignore
-        (typeof editor.getMarkdown === "function" ? editor.getMarkdown() : "");
+        (editor as any).storage?.markdown?.getMarkdown?.() ||
+        (editor as any).getMarkdown?.() ||
+        "";
 
       if (value !== currentMarkdown) {
         editor.commands.setContent(value);
