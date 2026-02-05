@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import { ShareButton } from "@/components/blog/ShareButton";
 import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -365,14 +366,7 @@ export default async function BlogDetail({ params }: PostPageProps) {
           {/* Share & Actions */}
           <div className="flex items-center justify-between mt-16 pt-8 border-t border-border">
             <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Share2 className="w-4 h-4" />
-                Chia sẻ
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Bookmark className="w-4 h-4" />
-                Lưu
-              </Button>
+              <ShareButton />
             </div>
           </div>
 

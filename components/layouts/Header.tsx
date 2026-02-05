@@ -5,8 +5,9 @@ import { Menu, X, Search } from "lucide-react";
 
 const navLinks = [
   { link: "/", label: "Trang chủ" },
+  { link: "/blog", label: "Bài viết" },
   { link: "/about", label: "Về tôi" },
-  { link: "/categories", label: "Danh mục" },
+  { link: "https://portfolio.techmentora.com/", label: "Liên hệ" },
 ];
 
 const Header = () => {
@@ -30,6 +31,9 @@ const Header = () => {
                 key={link.link}
                 href={link.link}
                 className="text-foreground/80 hover:text-primary transition-colors font-medium"
+                {...(link.link.startsWith("http")
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
               >
                 {link.label}
               </a>
@@ -52,24 +56,18 @@ const Header = () => {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <nav className="md:hidden mt-4 pb-4 flex flex-col gap-4 animate-fade-in">
-            <a
-              href="/"
-              className="text-foreground/80 hover:text-primary transition-colors font-medium py-2"
-            >
-              Trang chủ
-            </a>
-            <a
-              href="/about"
-              className="text-foreground/80 hover:text-primary transition-colors font-medium py-2"
-            >
-              Về tôi
-            </a>
-            <a
-              href="/categories"
-              className="text-foreground/80 hover:text-primary transition-colors font-medium py-2"
-            >
-              Danh mục
-            </a>
+            {navLinks.map((link) => (
+              <a
+                key={link.link}
+                href={link.link}
+                className="text-foreground/80 hover:text-primary transition-colors font-medium py-2"
+                {...(link.link.startsWith("http")
+                  ? { target: "_blank", rel: "noopener noreferrer" }
+                  : {})}
+              >
+                {link.label}
+              </a>
+            ))}
           </nav>
         )}
       </div>

@@ -6,6 +6,7 @@ import DataTable, { Column } from "../components/DataTable";
 import TagDialog from "../components/TagDialog";
 import { Plus, Search, Pencil, Trash2, Tags as TagsIcon } from "lucide-react";
 import { tagService, Tag } from "@/services/tag-service";
+import { storageService } from "@/services/storage-service";
 import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function TagsPage() {
@@ -34,20 +35,28 @@ export default function TagsPage() {
     fetchTags();
   }, [search]);
 
-  const handleSave = async (
-    tagData: Omit<Tag, "id" | "created_at"> & { id?: string },
-  ) => {
+  const handleSave = async (tagData: {
+    id?: string;
+    name: string;
+    slug: string;
+    description?: string;
+    image_url?: string;
+  }) => {
     try {
       if (tagData.id) {
         await tagService.update({
           id: tagData.id,
           name: tagData.name,
           slug: tagData.slug,
+          description: tagData.description,
+          image_url: tagData.image_url,
         });
       } else {
         await tagService.create({
           name: tagData.name,
           slug: tagData.slug,
+          description: tagData.description,
+          image_url: tagData.image_url,
         });
       }
       fetchTags();
@@ -67,6 +76,9 @@ export default function TagsPage() {
     if (!tagToDelete) return;
     setIsDeleting(true);
     try {
+      if (tagToDelete.image_url) {
+        await storageService.deleteTagImage(tagToDelete.image_url);
+      }
       await tagService.delete(tagToDelete.id);
       fetchTags();
       setConfirmOpen(false);
@@ -90,10 +102,34 @@ export default function TagsPage() {
 
   const columns: Column<Tag>[] = [
     {
+      key: "image_url",
+      title: "Ảnh",
+      render: (value) => (
+        <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted border border-border">
+          {value ? (
+            <img
+              src={String(value)}
+              alt="Tag"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <TagsIcon className="w-5 h-5 text-muted-foreground/50" />
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
       key: "name",
       title: "Tên thẻ",
-      render: (value) => (
-        <span className="font-medium text-foreground">{String(value)}</span>
+      render: (value, tag) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground">{String(value)}</span>
+          <span className="text-xs text-muted-foreground line-clamp-1 max-w-[200px]">
+            {tag.description || "Không có mô tả"}
+          </span>
+        </div>
       ),
     },
     {

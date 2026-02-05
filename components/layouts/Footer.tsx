@@ -2,9 +2,9 @@ import { Heart, Github, Twitter, Linkedin, Mail } from "lucide-react";
 
 const quickLinks = [
   { link: "/", label: "Trang chủ" },
-  { link: "/about", label: "Về tôi" },
+  { link: "/blog", label: "Bài viết" },
   { link: "/categories", label: "Danh mục" },
-  { link: "/contact", label: "Liên hệ" },
+  { link: "https://portfolio.techmentora.com/", label: "Liên hệ" },
 ];
 
 const medias = [
@@ -41,6 +41,9 @@ const Footer = () => {
                   <a
                     href={link.link}
                     className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                    {...(link.link.startsWith("http")
+                      ? { target: "_blank", rel: "noopener noreferrer" }
+                      : {})}
                   >
                     {link.label}
                   </a>
