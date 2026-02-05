@@ -75,7 +75,7 @@ export default function Sidebar() {
               <PenSquare className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-lg text-sidebar-foreground">
-              Kairo Blog
+              Kairo's Blog
             </span>
           </Link>
         )}

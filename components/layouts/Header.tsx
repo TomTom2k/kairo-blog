@@ -3,6 +3,12 @@
 import { useState } from "react";
 import { Menu, X, Search } from "lucide-react";
 
+const navLinks = [
+  { link: "/", label: "Trang chủ" },
+  { link: "/about", label: "Về tôi" },
+  { link: "/categories", label: "Danh mục" },
+];
+
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -19,27 +25,15 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            <a
-              href="/"
-              className="text-foreground/80 hover:text-primary transition-colors font-medium"
-            >
-              Trang chủ
-            </a>
-            <a
-              href="/about"
-              className="text-foreground/80 hover:text-primary transition-colors font-medium"
-            >
-              Về tôi
-            </a>
-            <a
-              href="/categories"
-              className="text-foreground/80 hover:text-primary transition-colors font-medium"
-            >
-              Danh mục
-            </a>
-            <button className="p-2 hover:bg-secondary rounded-full transition-colors">
-              <Search className="w-5 h-5 text-foreground/70" />
-            </button>
+            {navLinks.map((link) => (
+              <a
+                key={link.link}
+                href={link.link}
+                className="text-foreground/80 hover:text-primary transition-colors font-medium"
+              >
+                {link.label}
+              </a>
+            ))}
           </nav>
 
           {/* Mobile Menu Button */}
